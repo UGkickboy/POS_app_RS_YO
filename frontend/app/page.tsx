@@ -1,132 +1,91 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
-import BarcodeScanner from '../components/BarcodeScanner';
 import styled from 'styled-components';
+import ProductScanner from '../components/ProductScanner';
+import ProductList from '../components/ProductList';
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 50px;
+  padding: 20px;
 `;
 
-const ProductInfo = styled.div`
-  margin-top: 20px;
-  text-align: center;
-`;
-
-const ProductName = styled.h2`
-  font-size: 24px;
-  margin-bottom: 10px;
-`;
-
-const ProductPrice = styled.p`
-  font-size: 20px;
+const Title = styled.h1`
+  font-size: 2em;
   margin-bottom: 20px;
 `;
 
-const QuantityInput = styled.input`
-  width: 50px;
+const Button = styled.button`
+  background-color: #4CAF50;
+  color: white;
+  padding: 15px 32px;
   text-align: center;
-  margin-right: 10px;
-`;
-
-const AddButton = styled.button`
-  padding: 10px 20px;
   font-size: 16px;
-  background-color: #008CBA;
-  color: white;
-  border: none;
-  border-radius: 5px;
+  margin: 10px 2px;
   cursor: pointer;
 `;
 
-const CartList = styled.ul`
-  margin-top: 30px;
-  list-style-type: none;
-  padding: 0;
-  width: 80%;
-`;
-
-const CartItem = styled.li`
-  display: flex;
-  justify-content: space-between;
+const Input = styled.input`
   padding: 10px;
-  border-bottom: 1px solid #ddd;
-`;
-
-const TotalPrice = styled.h3`
-  margin-top: 20px;
-  font-size: 24px;
-`;
-
-const PurchaseButton = styled.button`
-  padding: 10px 20px;
+  margin: 10px 0;
   font-size: 16px;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
 `;
 
 export default function Home() {
-  const [product, setProduct] = useState(null);
-  const [quantity, setQuantity] = useState(1);
-  const [cart, setCart] = useState([]);
+  const [barcode, setBarcode] = useState('');
   const [scannedData, setScannedData] = useState('');
+  const [productList, setProductList] = useState([]);
+  const [total, setTotal] = useState(0);
 
-  const handleScan = (barcode) => {
-    setScannedData(barcode);
-    console.log('Scanned barcode:', barcode);
-
-    // Simulate fetching product data from backend
-    if (barcode === '1234567890123') {
-      setProduct({ name: 'ペプシコーラ', price: 140 });
-    } else {
-      setProduct(null);
+  const handleScan = (data) => {
+    if (data) {
+      setScannedData(data);
+      fetchProduct(data);
     }
   };
 
-  const handleAddToCart = () => {
+  const fetchProduct = async (barcode) => {
+    const response = await fetch(`http://localhost:8000/products/${barcode}`);
+    const product = await response.json();
     if (product) {
-      setCart([...cart, { ...product, quantity }]);
-      setProduct(null);
-      setQuantity(1);
+      const updatedProductList = [...productList, product];
+      setProductList(updatedProductList);
+      calculateTotal(updatedProductList);
     }
   };
 
-  const totalPrice = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+  const calculateTotal = (products) => {
+    const total = products.reduce((sum, product) => sum + product.price, 0);
+    setTotal(total);
+  };
+
+  const handleAddProduct = () => {
+    if (scannedData) {
+      fetchProduct(scannedData);
+      setScannedData('');
+    }
+  };
 
   return (
     <Container>
-      <BarcodeScanner onScan={handleScan} />
-      <p>Scanned Data: {scannedData}</p>
-      {product && (
-        <ProductInfo>
-          <ProductName>{product.name}</ProductName>
-          <ProductPrice>{product.price}円</ProductPrice>
-          <QuantityInput
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(Number(e.target.value))}
-            min="1"
-          />
-          <AddButton onClick={handleAddToCart}>追加</AddButton>
-        </ProductInfo>
-      )}
-      <h2>購入リスト</h2>
-      <CartList>
-        {cart.map((item, index) => (
-          <CartItem key={index}>
-            <span>{item.name} x {item.quantity}</span>
-            <span>{item.price * item.quantity}円</span>
-          </CartItem>
-        ))}
-      </CartList>
-      <TotalPrice>合計: {totalPrice}円</TotalPrice>
-      <PurchaseButton onClick={() => alert('購入完了')}>購入する</PurchaseButton>
+      <Title>POSシステム</Title>
+      <Input
+        type="text"
+        value={barcode}
+        onChange={(e) => setBarcode(e.target.value)}
+        placeholder="商品コードを入力"
+      />
+      <Button onClick={handleAddProduct}>商品コード読み込み</Button>
+      <ProductScanner onScan={handleScan} />
+      <div>
+        <h3>スキャンされたデータ: {scannedData}</h3>
+        <h3>購入リスト</h3>
+        <ProductList products={productList} />
+        <h3>合計: {total}円</h3>
+      </div>
+      <Button onClick={() => alert('購入完了')}>購入する</Button>
     </Container>
   );
 }

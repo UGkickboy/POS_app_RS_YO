@@ -1,40 +1,26 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, DECIMAL
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+import models
+import database
 
-DATABASE_URL = "mysql+pymysql://username:password@localhost/pos_app"
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-class Product(Base):
-    __tablename__ = 'products'
-    id = Column(Integer, primary_key=True, index=True)
-    barcode = Column(String, unique=True, index=True)
-    name = Column(String, index=True)
-    price = Column(DECIMAL(10, 2))
-
-Base.metadata.create_all(bind=engine)
+models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
-class BarcodeRequest(BaseModel):
-    barcode: str
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
-@app.post("/get-product")
-def get_product(barcode_request: BarcodeRequest):
-    session = SessionLocal()
-    product = session.query(Product).filter(Product.barcode == barcode_request.barcode).first()
-    session.close()
+@app.post("/products/")
+def create_product(product: models.Product, db: Session = Depends(database.get_db)):
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
 
-    if product:
-        return {"name": product.name, "price": product.price}
-    else:
+@app.get("/products/{barcode}")
+def read_product(barcode: str, db: Session = Depends(database.get_db)):
+    product = db.query(models.Product).filter(models.Product.barcode == barcode).first()
+    if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    return product
